@@ -277,7 +277,7 @@ footer{padding-block:40px 70px;color:var(--mute);font-size:11.5px;border-top:1px
 
   <section class="wrap" id="evidence">
     <div class="sechead">
-      <div><div class="k blue">03 / Evidence</div><h2 class="hd" style="margin-top:14px">90 real days,<em>replayed</em></h2></div>
+      <div><div class="k blue">03 / Evidence</div><h2 class="hd" style="margin-top:14px"><span id="evDays">90</span> real days,<em>replayed</em></h2></div>
       <p>Same site, same weather, same prices. How it runs today (thermostat, vans charge when plugged in) against Windfall.</p>
     </div>
     <div class="evgrid grid">
@@ -472,6 +472,8 @@ function paintMetrics(bt) {
   $('#metrics').innerHTML = `<tr><th></th><th>Naive</th><th>Windfall</th></tr>` + rows.map((r) => `<tr><td>${r[0]}</td><td>${r[1]}</td><td class="win">${r[2]}</td></tr>`).join('')
     + `<tr><td><b>Saved</b></td><td></td><td class="win">${eur(s.saved_eur)} · −${s.saved_pct}%</td></tr>`;
   $('#co2Big').textContent = s.co2_avoided_t_per_year;
+  $('#evDays').textContent = s.days;
+  if (bt.data_source && bt.data_source !== 'real') $('#evDays').parentNode.firstChild.nextSibling.textContent = ' simulated days,';
 }
 function paintLearn(bt) {
   const svg = $('#learnChart'); clear(svg);
