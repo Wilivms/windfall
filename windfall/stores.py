@@ -127,23 +127,51 @@ class PG:
 # ------------------------------------------------------------------ ClickHouse
 
 
+class _NativeCH:
+    """Same surface as the clickhouse_connect client (command / insert / query.result_rows) over the native protocol."""
+
+    def __init__(self, host: str, port: int, user: str, password: str, database: str, secure: bool) -> None:
+        from clickhouse_driver import Client
+        self.c = Client(host=host, port=port, user=user, password=password, database=database, secure=secure,
+                        verify=False, connect_timeout=15, settings={"use_numpy": False})
+        self.lock = threading.Lock()
+        self.c.execute("SELECT 1")
+
+    def command(self, sql: str):
+        with self.lock:
+            return self.c.execute(sql)
+
+    def insert(self, table: str, rows: list, column_names: list[str]):
+        rows = [[v.item() if hasattr(v, "item") else v for v in r] for r in rows]
+        with self.lock:
+            self.c.execute(f"INSERT INTO {table} ({', '.join(column_names)}) VALUES", rows)
+
+    def query(self, sql: str, parameters: dict | None = None):
+        with self.lock:
+            rows = self.c.execute(sql, parameters or None)
+        return type("R", (), {"result_rows": rows})()
+
+
 class CH:
     def __init__(self) -> None:
         self.client = None
         url = _env("CLICKHOUSE_URL", "CLICKHOUSE_URI", "CLICKHOUSE_HTTPS_URI", "CH_URI")
-        if not url:
-            host = _env("CLICKHOUSE_HOST")
-            if host:
-                url = f"https://{_env('CLICKHOUSE_USER') or 'avnadmin'}:{_env('CLICKHOUSE_PASSWORD') or ''}@{host}:{_env('CLICKHOUSE_PORT') or '443'}"
-        if not url:
-            _fail("clickhouse", "no CLICKHOUSE_URL")
+        host = _env("CLICKHOUSE_HOST")
+        if not url and not host:
+            _fail("clickhouse", "no CLICKHOUSE_URL / CLICKHOUSE_HOST")
             return
         try:
-            import clickhouse_connect
-            u = urlparse(url)
-            self.client = clickhouse_connect.get_client(
-                host=u.hostname, port=u.port or 443, username=u.username or "avnadmin", password=u.password or "",
-                secure=u.scheme in ("https", "clickhouses"), connect_timeout=15)
+            if host and not url:
+                # Aiven Runtime integration: native protocol over TLS
+                self.client = _NativeCH(host, int(_env("CLICKHOUSE_PORT") or 9440), _env("CLICKHOUSE_USER") or "avnadmin",
+                                        _env("CLICKHOUSE_PASSWORD") or "", _env("CLICKHOUSE_DATABASE") or "default",
+                                        (_env("CLICKHOUSE_SECURE") or "true").lower() in ("1", "true", "yes"))
+            else:
+                import clickhouse_connect
+                u = urlparse(url)
+                self.client = clickhouse_connect.get_client(
+                    host=u.hostname, port=u.port or 443, username=u.username or "avnadmin", password=u.password or "",
+                    secure=u.scheme in ("https", "clickhouses"), connect_timeout=15)
             self.client.command("""CREATE TABLE IF NOT EXISTS market_hourly (
                 ts DateTime('Europe/Paris'), price Float32, co2 Float32, temp Float32, source LowCardinality(String))
                 ENGINE = ReplacingMergeTree ORDER BY ts""")
@@ -257,6 +285,8 @@ class KF:
             user, pwd = _env("KAFKA_USERNAME", "KAFKA_USER"), _env("KAFKA_PASSWORD")
             tmp = tempfile.mkdtemp()
             def wr(name: str, content: str) -> str:
+                if len(content) < 400 and os.path.exists(content):
+                    return content
                 p = os.path.join(tmp, name)
                 with open(p, "w") as f:
                     f.write(content.replace("\\n", "\n"))
