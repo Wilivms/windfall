@@ -74,6 +74,7 @@ class Hub:
         self.source = "loading"
         self.backtest: dict = {}
         self.forecast_eval: dict = {}
+        self.seen_hour = None
         self.site = engine.Site()
         self.ready = False
         self.progress = "starting"
@@ -272,6 +273,7 @@ class Hub:
 
     def _live_loop(self, speed: float) -> None:
         self.live = {"running": True, "hour": 0}
+        self.seen_hour = None
         idx = day_windows(self.rows)
         i = idx[-1]
         market = engine.window_from_hourly(self.rows, i)
@@ -339,17 +341,27 @@ class Hub:
                         "spent_eur": round(spent, 2), "co2_kg": round(co2_kg, 1), "vans_charging": int((ev[:, h] > 0).sum())})
             if self.kf.live:
                 self.kf.send("site.telemetry", row)
+                # the Watcher consumes it from Kafka; if the stream lags, don't freeze the demo
+                t0 = time.time()
+                while self.seen_hour != h and time.time() - t0 < 2.0:
+                    time.sleep(0.05)
+                if self.seen_hour != h:
+                    self.on_telemetry(row, via="direct")
             else:
-                self.on_telemetry(row)
+                self.on_telemetry(row, via="direct")
             self.live["hour"] = h
             time.sleep(speed)
         self.live["running"] = False
         self.emit({"type": "live_end", "spent_eur": round(spent, 2), "co2_kg": round(co2_kg, 1)})
 
-    def on_telemetry(self, row: dict) -> None:
+    def on_telemetry(self, row: dict, via: str = "kafka") -> None:
         """Kafka consumer side: persist to ClickHouse, update live state in Valkey, push to the dashboard."""
-        self.counters["kafka_messages"] += 1
-        self.vk.incr("kafka_messages")
+        if row.get("hour") is not None and row.get("hour") == self.seen_hour:
+            return
+        self.seen_hour = row.get("hour")
+        if via == "kafka":
+            self.counters["kafka_messages"] += 1
+            self.vk.incr("kafka_messages")
         now = dt.datetime.now()
         sim = dt.datetime.strptime(row["sim_ts"], "%Y-%m-%d %H:%M")
         metrics = [(k, v) for k, v in row.items() if isinstance(v, (int, float)) and k not in ("hour",)]

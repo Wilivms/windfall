@@ -311,7 +311,7 @@ class KF:
                 admin.close()
             except Exception as e:  # noqa: BLE001
                 print(f"[kafka] topic setup: {e} (create topics site.telemetry and agent.decisions in the console)")
-            self.producer = KafkaProducer(**cfg, value_serializer=lambda v: json.dumps(v, default=str).encode(), linger_ms=50)
+            self.producer = KafkaProducer(**cfg, value_serializer=lambda v: json.dumps(v, default=str).encode(), linger_ms=0, max_block_ms=3000, request_timeout_ms=5000)
             _ok("kafka", ",".join(self.TOPICS))
         except Exception as e:  # noqa: BLE001
             self.producer = None
@@ -336,7 +336,7 @@ class KF:
             from kafka import KafkaConsumer
             while True:
                 try:
-                    c = KafkaConsumer(topic, **self.cfg, group_id=group, auto_offset_reset="latest",
+                    c = KafkaConsumer(topic, **self.cfg, group_id=None, auto_offset_reset="latest",
                                       value_deserializer=lambda b: json.loads(b.decode()))
                     for msg in c:
                         try:
