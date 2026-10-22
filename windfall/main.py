@@ -123,12 +123,23 @@ def report() -> JSONResponse:
         json.dumps({"site": h.site.name, "period_days": s.get("days"), **s, "data_source": h.source}),
         {"type": "object", "properties": {"title": {"type": "string"}, "paragraphs": {"type": "array", "items": {"type": "string"}},
                                           "method": {"type": "string"}}, "required": ["title", "paragraphs", "method"]}, max_tokens=900)
+    if not isinstance(out, dict) or not out.get("paragraphs"):
+        out = None
+    else:
+        paras = out.get("paragraphs")
+        out = {"title": str(out.get("title") or f"Energy and scope-2 emissions, last {s.get('days')} days"),
+               "paragraphs": [str(p) for p in (paras if isinstance(paras, list) else [paras])],
+               "method": str(out.get("method") or "Location-based; hourly French grid intensity from the real generation mix (Energy-Charts)."),
+               "by": "claude"}
     if not out:
         out = {"title": f"Energy and scope-2 emissions, last {s.get('days')} days",
                "paragraphs": [f"Windfall shifted the site's flexible consumption (3 cold rooms, 12 EV vans) to cheaper, lower-carbon hours. Energy cost fell by €{s.get('saved_eur')} ({s.get('saved_pct')}%).",
                               f"Location-based scope-2 emissions fell by {s.get('co2_avoided_kg')} kg CO₂e ({s.get('co2_avoided_pct')}%), with zero cold-chain violations and 100% of vans ready at 06:00."],
                "method": "Hourly French grid intensity from the real generation mix (Energy-Charts) × hourly site consumption; IPCC life-cycle emission factors."}
-    h.audit("Auditor", "report", out["title"], out["method"])
+    try:
+        h.audit("Auditor", "report", out["title"], out["method"])
+    except Exception as e:  # noqa: BLE001
+        print(f"[report] audit {e}")
     return JSONResponse(out)
 
 
