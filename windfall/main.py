@@ -31,6 +31,20 @@ def startup() -> None:
         if kf.live:
             kf.consume("site.telemetry", hub.on_telemetry)
         hub.boot(load_market)
+        # services created at the same time as the app can take a few minutes to resolve: keep retrying
+        import time
+        for _ in range(60):
+            time.sleep(30)
+            if not hub.os.live:
+                hub.os = stores.OS()
+            if not hub.ch.live:
+                hub.ch = stores.CH()
+            if not hub.vk.live:
+                hub.vk = stores.VK()
+                if hub.vk.live:
+                    hub.start_valkey_bridge()
+            if hub.os.live and hub.ch.live and hub.vk.live:
+                break
     threading.Thread(target=init, daemon=True).start()
 
 
