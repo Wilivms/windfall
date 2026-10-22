@@ -37,12 +37,12 @@ def claude_json(system: str, user: str, schema: dict, name: str = "answer", max_
             model=CLAUDE_MODEL, max_tokens=max_tokens, system=system,
             tools=[{"name": name, "description": "Return the structured answer. Always call this tool exactly once.", "input_schema": schema}],
             tool_choice={"type": "auto"},
-            messages=[{"role": "user", "content": user + f"\n\nAnswer by calling the `{name}` tool."}])
+            messages=[{"role": "user", "content": user + f"\n\nAnswer by calling the `{name}` tool. If you cannot call it, reply with only the JSON object matching its schema."}])
         for b in r.content:
             if b.type == "tool_use":
                 return dict(b.input)
         import re
-        txt = "".join(getattr(b, "text", "") for b in r.content)
+        txt = "".join((getattr(b, "text", None) or "") for b in r.content if getattr(b, "type", "") == "text")
         m = re.search(r"\{.*\}", txt, re.S)
         if m:
             return json.loads(m.group(0))
@@ -269,7 +269,8 @@ class Hub:
                             f"Never above the {self.site.site_cap_kw:.0f} kW subscribed power (today's naive peak: {facts['peak_baseline']} kW)."],
                    "watch_out": "Late van arrivals squeeze the overnight window; the Watcher will replan if one happens."}
         out.update({"facts": facts, "news": news, "at": time.time(), "by": by})
-        self.briefing_cache = out
+        if by == "claude" or not os.environ.get("ANTHROPIC_API_KEY"):
+            self.briefing_cache = out
         return out
 
     # ---------------- Watcher: a live replay of the latest day through Kafka
