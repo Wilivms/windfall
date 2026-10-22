@@ -26,26 +26,30 @@ CLAUDE_MODEL = os.environ.get("CLAUDE_MODEL", "claude-sonnet-5-5")
 # ------------------------------------------------------------------ Claude + Keenable
 
 
-def claude_json(system: str, user: str, schema: dict, name: str = "answer", max_tokens: int = 600) -> dict | None:
+def claude_json(system: str, user: str, schema: dict, name: str = "answer", max_tokens: int = 1500) -> dict | None:
     key = os.environ.get("ANTHROPIC_API_KEY")
     if not key:
         return None
     try:
-        import anthropic
-        client = anthropic.Anthropic(api_key=key, timeout=25)
-        r = client.messages.create(
-            model=CLAUDE_MODEL, max_tokens=max_tokens, system=system,
-            tools=[{"name": name, "description": "Return the structured answer. Always call this tool exactly once.", "input_schema": schema}],
-            tool_choice={"type": "auto"},
-            messages=[{"role": "user", "content": user + f"\n\nAnswer by calling the `{name}` tool. If you cannot call it, reply with only the JSON object matching its schema."}])
-        for b in r.content:
-            if b.type == "tool_use":
-                return dict(b.input)
+        body = {"model": CLAUDE_MODEL, "max_tokens": max_tokens, "system": system,
+                "tools": [{"name": name, "description": "Return the structured answer. Always call this tool exactly once.", "input_schema": schema}],
+                "tool_choice": {"type": "auto"},
+                "messages": [{"role": "user", "content": user + f"\n\nAnswer by calling the `{name}` tool. If you cannot call it, reply with only the JSON object matching its schema."}]}
+        resp = httpx.post("https://api.anthropic.com/v1/messages", json=body, timeout=40,
+                          headers={"x-api-key": key, "anthropic-version": "2023-06-01", "content-type": "application/json"})
+        data = resp.json()
+        if resp.status_code != 200:
+            raise RuntimeError(f"{resp.status_code} {str(data)[:300]}")
+        blocks = data.get("content") or []
+        for b in blocks:
+            if b.get("type") == "tool_use" and isinstance(b.get("input"), dict):
+                return dict(b["input"])
         import re
-        txt = "".join((getattr(b, "text", None) or "") for b in r.content if getattr(b, "type", "") == "text")
+        txt = "".join((b.get("text") or "") for b in blocks if b.get("type") == "text")
         m = re.search(r"\{.*\}", txt, re.S)
         if m:
             return json.loads(m.group(0))
+        print(f"[claude] no structured answer; block types={[b.get('type') for b in blocks]}")
     except Exception as e:  # noqa: BLE001
         print(f"[claude] {e}")
     return None
