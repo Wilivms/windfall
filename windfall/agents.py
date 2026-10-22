@@ -35,12 +35,17 @@ def claude_json(system: str, user: str, schema: dict, name: str = "answer", max_
         client = anthropic.Anthropic(api_key=key, timeout=25)
         r = client.messages.create(
             model=CLAUDE_MODEL, max_tokens=max_tokens, system=system,
-            tools=[{"name": name, "description": "Return the structured answer.", "input_schema": schema}],
-            tool_choice={"type": "tool", "name": name},
-            messages=[{"role": "user", "content": user}])
+            tools=[{"name": name, "description": "Return the structured answer. Always call this tool exactly once.", "input_schema": schema}],
+            tool_choice={"type": "auto"},
+            messages=[{"role": "user", "content": user + f"\n\nAnswer by calling the `{name}` tool."}])
         for b in r.content:
             if b.type == "tool_use":
                 return dict(b.input)
+        import re
+        txt = "".join(getattr(b, "text", "") for b in r.content)
+        m = re.search(r"\{.*\}", txt, re.S)
+        if m:
+            return json.loads(m.group(0))
     except Exception as e:  # noqa: BLE001
         print(f"[claude] {e}")
     return None
@@ -255,13 +260,14 @@ class Hub:
                 "plan": {"type": "array", "items": {"type": "string"}, "description": "3 bullets, max 22 words each"},
                 "watch_out": {"type": "string", "description": "one risk to watch, max 20 words"}},
              "required": ["headline", "plan", "watch_out"]})
+        by = "claude" if out else "rules"
         if not out:
             out = {"headline": f"Shift €{b['cost_eur'] - w['cost_eur']:.0f} of cost and {b['co2_kg'] - w['co2_kg']:.0f} kg CO₂ out of the evening peak",
                    "plan": [f"Pre-cool the cold rooms in the cheapest hours ({', '.join(facts['cheapest_hours'][:3])}).",
                             f"Charge the {facts['vans']} vans overnight in the cleanest hours; every van ready at 06:00.",
                             f"Never above the {self.site.site_cap_kw:.0f} kW subscribed power (today's naive peak: {facts['peak_baseline']} kW)."],
                    "watch_out": "Late van arrivals squeeze the overnight window; the Watcher will replan if one happens."}
-        out.update({"facts": facts, "news": news, "at": time.time(), "by": "claude" if os.environ.get("ANTHROPIC_API_KEY") else "rules"})
+        out.update({"facts": facts, "news": news, "at": time.time(), "by": by})
         self.briefing_cache = out
         return out
 
