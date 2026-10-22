@@ -253,7 +253,8 @@ class Hub:
                  "price_range": [min(prices), max(prices)], "vans": len(d["vans"]), "news": [n["title"] for n in news]}
         out = claude_json(
             "You are Windfall's Planner agent. You explain tomorrow's energy plan for a cold-storage site with an EV fleet to its operations manager. "
-            "Be concrete, plain English, numbers from the facts only. Never invent numbers.",
+            "Be concrete, plain English, numbers from the facts only. Never invent numbers. Always write units: costs in € (whole euros), CO₂ in kg, power in kW, times as HH:MM. "
+            "The 3 bullets cover: cold rooms (pre-cooling hours), vans (charging hours, ready at 06:00), and the 110 kW cap.",
             "Facts:\n" + json.dumps(facts),
             {"type": "object", "properties": {
                 "headline": {"type": "string", "description": "max 14 words"},
