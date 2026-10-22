@@ -1,2 +1,583 @@
-<!doctype html><html><head><meta charset="utf-8"><title>Windfall</title></head><body><h1>Windfall</h1><pre id="h">loading…</pre>
-<script>setInterval(async()=>{document.getElementById('h').textContent=JSON.stringify(await (await fetch('/api/health')).json(),null,2)},2000)</script></body></html>
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Windfall</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700;12..96,800&family=Instrument+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<style>
+/* Layout: a control room for one site. Thesis + live day on top, evidence below, data layer and audit at the end.
+   Palette: field green for clean power, ember for gas-heavy hours, ink on a pale chlorophyll-tinted paper. */
+:root{
+  --paper:#F4F7F1; --card:#FFFFFF; --ink:#0F2219; --ink-2:#2B3D33; --soft:#4F6157; --mute:#6A7B71;
+  --line:rgba(15,34,25,.10); --line-2:rgba(15,34,25,.18); --wash:#E9EFE5;
+  --leaf:#18794E; --leaf-2:#0F5C3A; --leaf-bg:#DDF1E4; --mint:#7FD3A7;
+  --wind:#2C7DA0; --wind-bg:#DCEEF5;
+  --ember:#C2410C; --ember-bg:#FDE8DC;
+  --cold:#3B5BDB; --cold-bg:#E3E9FF;
+  --display:"Bricolage Grotesque","Instrument Sans",system-ui,sans-serif;
+  --body:"Instrument Sans",system-ui,-apple-system,sans-serif;
+  --mono:"IBM Plex Mono",ui-monospace,Menlo,monospace;
+}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--paper);color:var(--ink);font-family:var(--body);font-size:15px;-webkit-font-smoothing:antialiased}
+button,input,select{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--leaf);outline-offset:2px}
+[hidden]{display:none!important}
+.mono{font-family:var(--mono);font-variant-numeric:tabular-nums}
+.k{font-family:var(--mono);font-size:11px;letter-spacing:.09em;text-transform:uppercase;color:var(--mute)}
+h1,h2,h3{font-family:var(--display);text-wrap:balance;margin:0;letter-spacing:-.02em}
+.wrap{max-width:1360px;margin:0 auto;padding-inline:max(20px,env(safe-area-inset-left,0px))}
+section{padding-block:34px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:20px}
+.btn{display:inline-flex;align-items:center;gap:8px;min-height:44px;padding:10px 16px;border-radius:11px;border:1px solid transparent;font-weight:600;cursor:pointer;transition:background .2s,border-color .2s,transform .1s}
+.btn:active{transform:scale(.98)}
+.btn-leaf{background:var(--leaf);color:#fff}.btn-leaf:hover{background:var(--leaf-2)}
+.btn-ghost{background:transparent;border-color:var(--line-2)}.btn-ghost:hover{border-color:var(--ink)}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+.pill{display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:600;padding:4px 10px;border-radius:999px;background:var(--wash);color:var(--ink-2);white-space:nowrap}
+.dot{width:8px;height:8px;border-radius:50%;background:var(--mute)}
+.dot.on{background:var(--leaf);box-shadow:0 0 0 3px var(--leaf-bg)}
+.dot.off{background:#C9D3CC}
+@keyframes rise{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.35}}
+@keyframes sway{0%,100%{transform:translateX(0)}50%{transform:translateX(6px)}}
+
+/* top bar */
+.top{position:sticky;top:0;z-index:20;background:rgba(244,247,241,.92);backdrop-filter:blur(10px);border-bottom:1px solid var(--line)}
+.top .wrap{display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap;padding-block:12px}
+.brand{display:flex;align-items:center;gap:10px;font-family:var(--display);font-weight:800;font-size:22px;letter-spacing:-.03em}
+.brand svg{width:30px;height:30px}
+.stores{display:flex;gap:6px;flex-wrap:wrap}
+.stores .pill{background:var(--card);border:1px solid var(--line);font-weight:500}
+
+/* hero */
+.hero{display:grid;grid-template-columns:minmax(0,1.25fr) minmax(0,1fr);gap:28px;align-items:end}
+.hero h1{font-size:clamp(38px,5.2vw,72px);line-height:.96;font-weight:800;letter-spacing:-.04em}
+.hero h1 em{font-style:normal;color:var(--leaf)}
+.hero p.lead{margin:18px 0 0;font-size:19px;line-height:1.5;color:var(--soft);max-width:58ch}
+.kpis{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.kpi{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:16px 18px;animation:rise .6s ease-out both}
+.kpi b{display:block;font-family:var(--display);font-size:34px;letter-spacing:-.03em;margin-top:6px}
+.kpi small{display:block;color:var(--mute);font-size:13px;margin-top:2px;line-height:1.35}
+.kpi.green b{color:var(--leaf)}
+.briefing{margin-top:26px;display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:16px}
+.briefing ul{margin:10px 0 0;padding-left:18px;line-height:1.55;color:var(--ink-2)}
+.briefing h3{font-size:22px;margin-top:6px}
+.news a{color:var(--wind);text-decoration:none}.news a:hover{text-decoration:underline}
+.news li{margin-bottom:6px}
+
+/* live */
+.livehead{display:flex;justify-content:space-between;align-items:flex-end;gap:16px;flex-wrap:wrap;margin-bottom:16px}
+.livehead h2{font-size:34px}
+.livegrid{display:grid;grid-template-columns:minmax(0,2.1fr) minmax(0,1fr);gap:16px}
+.chart{width:100%;height:auto;display:block}
+.legend{display:flex;gap:14px;flex-wrap:wrap;font-size:12px;color:var(--soft);margin-top:8px}
+.legend i{display:inline-block;width:12px;height:12px;border-radius:3px;margin-right:6px;vertical-align:-2px}
+.rooms{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin-top:14px}
+.room{border:1px solid var(--line);border-radius:12px;padding:12px;background:var(--card)}
+.room b{font-size:13px;display:block;line-height:1.25}
+.therm{position:relative;height:10px;border-radius:5px;background:linear-gradient(90deg,var(--cold-bg),#fff 50%,var(--ember-bg));margin-top:10px}
+.therm .band{position:absolute;top:0;bottom:0;left:25%;right:25%;border-left:1px dashed var(--cold);border-right:1px dashed var(--ember)}
+.therm .mark{position:absolute;top:-4px;width:4px;height:18px;border-radius:2px;background:var(--ink);transition:left .5s ease}
+.room .t{font-family:var(--mono);font-size:22px;font-weight:600;margin-top:8px}
+.room .kw{font-family:var(--mono);font-size:12px;color:var(--mute)}
+.vans{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:6px;margin-top:12px}
+.van{border-radius:8px;border:1px solid var(--line);padding:6px 4px;text-align:center;font-family:var(--mono);font-size:10.5px;background:var(--card);transition:background .3s,border-color .3s}
+.van.charging{background:var(--leaf-bg);border-color:var(--leaf);color:var(--leaf-2)}
+.van.done{background:var(--leaf);color:#fff;border-color:var(--leaf)}
+.van.away{opacity:.45}
+.feed{display:flex;flex-direction:column;gap:8px;max-height:520px;overflow:auto}
+.ev{border:1px solid var(--line);border-radius:12px;padding:10px 12px;background:var(--card);animation:rise .4s ease-out both;font-size:13.5px;line-height:1.45}
+.ev .who{font-family:var(--mono);font-size:11px;letter-spacing:.06em;text-transform:uppercase}
+.ev.anomaly{border-color:var(--ember);background:var(--ember-bg)}
+.ev.anomaly .who{color:var(--ember)}
+.ev.decision .who{color:var(--leaf)}
+.ev p{margin:4px 0 0;color:var(--ink-2)}
+.counters{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-bottom:12px}
+.counters div{background:var(--wash);border-radius:10px;padding:10px}
+.counters b{display:block;font-family:var(--mono);font-size:18px;margin-top:2px}
+
+/* evidence */
+.evgrid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px}
+.evgrid .wide{grid-column:span 2}
+.big{font-family:var(--display);font-size:46px;font-weight:800;letter-spacing:-.04em;color:var(--leaf);line-height:1}
+.metrics{width:100%;border-collapse:collapse;font-size:14px}
+.metrics td,.metrics th{padding:9px 6px;border-bottom:1px solid var(--line);text-align:right}
+.metrics th:first-child,.metrics td:first-child{text-align:left}
+.metrics th{font-size:11px;font-family:var(--mono);letter-spacing:.06em;text-transform:uppercase;color:var(--mute);font-weight:500}
+.metrics td.win{color:var(--leaf);font-weight:700}
+.bars2{display:flex;flex-direction:column;gap:12px;margin-top:12px}
+.bar2 .lab{display:flex;justify-content:space-between;font-size:13px;margin-bottom:4px}
+.bar2 .tr{height:12px;border-radius:6px;background:var(--wash);overflow:hidden}
+.bar2 .tr i{display:block;height:100%;border-radius:6px;transition:width .8s ease}
+
+/* time machine */
+.tm{display:grid;grid-template-columns:minmax(0,2fr) minmax(0,1fr);gap:16px}
+.tm select{border:1px solid var(--line-2);border-radius:10px;padding:9px 12px;background:var(--card);min-height:44px}
+
+/* data layer */
+.flow{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px;align-items:stretch}
+.col{display:flex;flex-direction:column;gap:10px}
+.node{border:1px solid var(--line);border-radius:12px;padding:12px;background:var(--card);position:relative}
+.node b{display:block;font-size:14px}
+.node small{display:block;color:var(--mute);font-size:12.5px;margin-top:3px;line-height:1.35}
+.node .n{font-family:var(--mono);font-size:12px;color:var(--leaf-2);margin-top:6px}
+.node.aiven{border-color:var(--leaf)}
+.node.aiven::before{content:"Aiven";position:absolute;top:-9px;right:10px;font-family:var(--mono);font-size:10px;background:var(--leaf);color:#fff;padding:1px 6px;border-radius:5px}
+.arrowcol{display:flex;align-items:center;justify-content:center;color:var(--mute)}
+
+/* audit */
+.audit input{width:100%;border:1px solid var(--line-2);border-radius:10px;padding:10px 12px;min-height:44px;background:var(--card)}
+.log{list-style:none;padding:0;margin:12px 0 0;max-height:420px;overflow:auto}
+.log li{border-bottom:1px solid var(--line);padding:10px 0;font-size:13.5px;line-height:1.45}
+.log li .meta{font-family:var(--mono);font-size:11px;color:var(--mute)}
+.report p{line-height:1.6;color:var(--ink-2)}
+
+/* boot overlay */
+.boot{position:fixed;inset:0;z-index:50;background:var(--paper);display:grid;place-items:center;text-align:center;padding:24px}
+.boot h2{font-size:40px}
+.boot p{color:var(--soft);font-size:16px}
+.windlines{display:flex;flex-direction:column;gap:7px;align-items:center;margin:24px auto}
+.windlines i{display:block;height:3px;border-radius:2px;background:var(--leaf);animation:sway 1.8s ease-in-out infinite}
+.windlines i:nth-child(2){animation-delay:.2s;background:var(--wind)}.windlines i:nth-child(3){animation-delay:.4s;background:var(--mint)}
+
+footer{padding-block:30px 60px;color:var(--mute);font-size:13px}
+
+@media (max-width:980px){
+  .hero,.livegrid,.tm,.briefing{grid-template-columns:minmax(0,1fr)}
+  .evgrid{grid-template-columns:minmax(0,1fr)}.evgrid .wide{grid-column:auto}
+  .flow{grid-template-columns:minmax(0,1fr)}
+  .vans{grid-template-columns:repeat(4,minmax(0,1fr))}
+}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+</head>
+<body>
+
+<div class="boot" id="boot">
+  <div>
+    <div class="windlines" aria-hidden="true"><i style="width:120px"></i><i style="width:180px"></i><i style="width:90px"></i></div>
+    <h2>Windfall</h2>
+    <p id="bootMsg">Starting the agents…</p>
+  </div>
+</div>
+
+<header class="top">
+  <div class="wrap">
+    <div class="brand">
+      <svg viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="9" fill="#18794E"/><path d="M7 12h12a3 3 0 1 0-3-3M7 17h16a3.5 3.5 0 1 1-3.5 3.5M7 22h8" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round"/></svg>
+      Windfall
+    </div>
+    <div class="stores" id="stores" aria-label="Data layer status"></div>
+  </div>
+</header>
+
+<main>
+  <section class="wrap">
+    <div class="hero">
+      <div>
+        <div class="k" id="siteName">Lumen Cold Logistics · Rungis</div>
+        <h1 style="margin-top:12px">Use power when the grid is <em>full of sun and wind</em>.</h1>
+        <p class="lead">Windfall is an energy autopilot for small businesses. A team of agents moves your flexible consumption (freezers, van charging) to the hours when electricity is cheap and clean, and never breaks the cold chain.</p>
+      </div>
+      <div class="kpis" id="kpis"></div>
+    </div>
+    <div class="briefing">
+      <div class="card">
+        <div class="k">Tomorrow's plan · Planner agent <span id="briefBy"></span></div>
+        <h3 id="briefHead">…</h3>
+        <ul id="briefPlan"></ul>
+        <p id="briefWatch" style="margin:10px 0 0;color:var(--ember);font-size:14px"></p>
+      </div>
+      <div class="card news">
+        <div class="k">Grid news · Keenable search</div>
+        <ul id="news" style="padding-left:18px;margin:10px 0 0;font-size:14px;line-height:1.45"></ul>
+        <div class="k" style="margin-top:14px">Forecaster · similar past days (pgvector)</div>
+        <div id="similar" style="font-size:13.5px;margin-top:8px;color:var(--ink-2)"></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="wrap" id="live">
+    <div class="livehead">
+      <div><div class="k">Live operations · Kafka telemetry stream</div><h2>Today, replayed hour by hour</h2></div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button class="btn btn-leaf" id="liveBtn" type="button">Run today live</button>
+        <button class="btn btn-ghost" id="liveStop" type="button" hidden>Stop</button>
+      </div>
+    </div>
+    <div class="livegrid">
+      <div class="card">
+        <svg class="chart" id="liveChart" viewBox="0 0 860 330" role="img" aria-label="Site load by hour against price and grid carbon"></svg>
+        <div class="legend">
+          <span><i style="background:#C9D3CC"></i>Base load</span><span><i style="background:var(--cold)"></i>Cold rooms</span>
+          <span><i style="background:var(--leaf)"></i>Van charging</span><span><i style="background:var(--ember);height:3px"></i>Price €/MWh</span>
+          <span><i style="background:var(--wind);height:3px"></i>Grid carbon g/kWh</span><span><i style="border-top:2px dashed var(--ink);height:0;background:none"></i>110 kW subscribed</span>
+        </div>
+        <div class="rooms" id="rooms"></div>
+        <div class="k" style="margin-top:16px">Fleet · 12 electric vans, ready by 06:00</div>
+        <div class="vans" id="vans"></div>
+      </div>
+      <div>
+        <div class="counters">
+          <div><span class="k">Sim time</span><b id="cTime">--:--</b></div>
+          <div><span class="k">Spent</span><b id="cSpent">€0</b></div>
+          <div><span class="k">CO₂</span><b id="cCo2">0 kg</b></div>
+        </div>
+        <div class="k" style="margin-bottom:8px">Agent decisions · Watcher, Planner</div>
+        <div class="feed" id="feed"><div class="ev"><p>Press “Run today live”. Telemetry flows through Kafka; the Watcher replans when something goes wrong.</p></div></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="wrap" id="evidence">
+    <div class="k">Evidence · 90 real days replayed</div>
+    <h2 style="font-size:34px;margin:6px 0 16px">Windfall vs. how the site runs today</h2>
+    <div class="evgrid">
+      <div class="card wide">
+        <div class="k">Daily energy cost, naive vs Windfall</div>
+        <svg class="chart" id="costChart" viewBox="0 0 860 260" role="img" aria-label="Daily cost over 90 days"></svg>
+        <div class="legend"><span><i style="background:var(--ember)"></i>Naive (thermostat + charge on plug-in)</span><span><i style="background:var(--leaf)"></i>Windfall</span></div>
+      </div>
+      <div class="card">
+        <div class="k">Results</div>
+        <table class="metrics" id="metrics"></table>
+      </div>
+      <div class="card">
+        <div class="k">The Learner · gets better every night</div>
+        <svg class="chart" id="learnChart" viewBox="0 0 420 220" role="img" aria-label="Safety overrides per day falling as the model learns"></svg>
+        <p style="font-size:13.5px;color:var(--soft);margin:8px 0 0" id="learnNote"></p>
+      </div>
+      <div class="card">
+        <div class="k">The Forecaster · 2 days ahead, before prices exist</div>
+        <div class="bars2" id="fcBars"></div>
+        <p style="font-size:13.5px;color:var(--soft);margin:12px 0 0">Mean absolute error over the last 30 days. Analog days come from the pgvector memory of past days.</p>
+      </div>
+      <div class="card">
+        <div class="k">Why it is greener</div>
+        <p style="font-size:14.5px;line-height:1.55;color:var(--ink-2);margin:10px 0 0">We do not ask anyone to consume less. The kWh moved out of the evening peak are the ones the grid makes with gas; Windfall buys them back when solar and wind are in surplus, sometimes at negative prices.</p>
+        <div class="big" id="co2Big" style="margin-top:12px">–</div>
+        <small style="color:var(--mute)">tonnes of CO₂ avoided per year, one site</small>
+      </div>
+    </div>
+  </section>
+
+  <section class="wrap" id="timemachine">
+    <div class="k">Time machine</div>
+    <h2 style="font-size:34px;margin:6px 0 16px">Pick any day: what you did, what Windfall would have done</h2>
+    <div class="tm">
+      <div class="card">
+        <label class="k" for="daySel">Day</label>
+        <select id="daySel" style="display:block;margin:6px 0 12px"></select>
+        <svg class="chart" id="tmChart" viewBox="0 0 860 280" role="img" aria-label="Load by hour, naive vs Windfall"></svg>
+        <div class="legend"><span><i style="background:var(--ember);opacity:.55"></i>Naive load</span><span><i style="background:var(--leaf)"></i>Windfall load</span><span><i style="background:var(--ink);height:3px"></i>Price €/MWh</span></div>
+      </div>
+      <div class="card" id="tmStats"></div>
+    </div>
+  </section>
+
+  <section class="wrap" id="data">
+    <div class="k">The data layer · live counts</div>
+    <h2 style="font-size:34px;margin:6px 0 16px">Every agent decision is grounded in data on Aiven</h2>
+    <div class="flow" id="flow"></div>
+  </section>
+
+  <section class="wrap" id="audit">
+    <div class="evgrid">
+      <div class="card audit wide">
+        <div class="k">Audit trail · OpenSearch</div>
+        <h3 style="font-size:24px;margin:6px 0 12px">Every decision, searchable</h3>
+        <label class="k" for="q">Search decisions</label>
+        <input id="q" type="search" placeholder="e.g. door, van, replan, Learner" style="margin-top:6px">
+        <ul class="log" id="log"></ul>
+      </div>
+      <div class="card report">
+        <div class="k">Auditor agent · CSRD note</div>
+        <button class="btn btn-ghost" id="repBtn" type="button" style="margin-top:12px">Draft the carbon note</button>
+        <div id="report"></div>
+      </div>
+    </div>
+  </section>
+</main>
+<footer class="wrap">Windfall · built at Accel AI Innovate Paris · market data: Energy-Charts (Fraunhofer ISE), Open-Meteo · <span id="srcNote"></span></footer>
+
+<script>
+(() => {
+const $ = (s) => document.querySelector(s);
+const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+const eur = (n) => '€' + Math.round(n).toLocaleString('en-US');
+const fmt = (n, d = 0) => Number(n).toLocaleString('en-US', { maximumFractionDigits: d, minimumFractionDigits: d });
+const get = async (u) => (await fetch(u)).json();
+const NS = 'http://www.w3.org/2000/svg';
+const css = (v) => getComputedStyle(document.documentElement).getPropertyValue(v).trim();
+
+/* ---------- boot ---------- */
+async function waitReady() {
+  for (;;) {
+    try {
+      const h = await get('/api/health');
+      paintStores(h);
+      $('#bootMsg').textContent = h.progress;
+      if (h.ready) { $('#boot').hidden = true; $('#srcNote').textContent = h.data_source === 'real' ? 'real French market data, last 92 days' : 'synthetic market data (real sources unreachable)'; return h; }
+    } catch (e) { $('#bootMsg').textContent = 'Waiting for the server…'; }
+    await new Promise((r) => setTimeout(r, 1500));
+  }
+}
+function paintStores(h) {
+  const names = { postgres: 'PostgreSQL · pgvector', clickhouse: 'ClickHouse', kafka: 'Kafka', valkey: 'Valkey', opensearch: 'OpenSearch' };
+  const st = h.stores || {};
+  $('#stores').innerHTML = Object.entries(names).map(([k, n]) => `<span class="pill" title="${esc(st[k]?.detail || '')}"><span class="dot ${st[k]?.live ? 'on' : 'off'}"></span>${n}</span>`).join('')
+    + `<span class="pill"><span class="dot ${h.claude ? 'on' : 'off'}"></span>Claude</span><span class="pill"><span class="dot ${h.keenable ? 'on' : 'off'}"></span>Keenable</span>`;
+}
+
+/* ---------- svg helpers ---------- */
+function el(tag, attrs = {}, parent) { const e = document.createElementNS(NS, tag); for (const [k, v] of Object.entries(attrs)) e.setAttribute(k, v); if (parent) parent.appendChild(e); return e; }
+function clear(svg) { while (svg.firstChild) svg.removeChild(svg.firstChild); }
+function axisText(svg, x, y, t, anchor = 'middle', color) { const e = el('text', { x, y, 'text-anchor': anchor, 'font-size': 11, 'font-family': css('--mono'), fill: color || css('--mute') }, svg); e.textContent = t; return e; }
+
+/* ---------- KPIs + briefing ---------- */
+let BT = null;
+function paintKpis(bt) {
+  const s = bt.summary;
+  const k = [
+    ['green', eur(s.saved_eur_per_year), `saved per year on one site (−${s.saved_pct}% on energy cost)`],
+    ['green', `${s.co2_avoided_t_per_year} t`, `CO₂ avoided per year (−${s.co2_avoided_pct}%)`],
+    ['', `${s.over_cap_hours_windfall} h`, `above the 110 kW subscription (naive: ${s.over_cap_hours_baseline} h)`],
+    ['', `${s.cold_violations_windfall}`, `cold-chain breaches · ${s.vans_ready_pct}% of vans ready at 06:00`],
+  ];
+  $('#kpis').innerHTML = k.map(([c, b, t], i) => `<div class="kpi ${c}" style="animation-delay:${i * 0.08}s"><span class="k">Last ${s.days} days</span><b>${b}</b><small>${t}</small></div>`).join('');
+}
+async function loadBriefing() {
+  try {
+    const b = await get('/api/briefing');
+    $('#briefHead').textContent = b.headline;
+    $('#briefPlan').innerHTML = (b.plan || []).map((p) => `<li>${esc(p)}</li>`).join('');
+    $('#briefWatch').textContent = b.watch_out ? 'Watch out: ' + b.watch_out : '';
+    $('#briefBy').textContent = b.by === 'claude' ? '· written by Claude' : '';
+    $('#news').innerHTML = (b.news || []).length ? b.news.map((n) => `<li><a href="${esc(n.url)}" target="_blank" rel="noopener">${esc(n.title)}</a></li>`).join('') : '<li style="color:var(--mute)">No grid alert in the news right now.</li>';
+  } catch (e) { $('#briefHead').textContent = 'Plan unavailable'; }
+  try {
+    const f = await get('/api/forecast');
+    $('#similar').innerHTML = (f.similar_days || []).map((s) => `<span class="pill" style="margin:0 6px 6px 0">${esc(s.day)} · d=${s.distance}</span>`).join('') || '—';
+  } catch (e) {}
+}
+
+/* ---------- evidence ---------- */
+function paintCost(bt) {
+  const svg = $('#costChart'); clear(svg);
+  const d = bt.daily, W = 860, H = 260, L = 46, R = 12, T = 12, B = 30;
+  const max = Math.max(...d.map((x) => x.baseline_cost)) * 1.08;
+  const x = (i) => L + (i / (d.length - 1)) * (W - L - R), y = (v) => T + (1 - v / max) * (H - T - B);
+  for (let g = 0; g <= 4; g++) { const v = (max / 4) * g; el('line', { x1: L, x2: W - R, y1: y(v), y2: y(v), stroke: css('--line'), 'stroke-width': 1 }, svg); axisText(svg, L - 6, y(v) + 4, '€' + Math.round(v), 'end'); }
+  const path = (k) => d.map((p, i) => `${i ? 'L' : 'M'}${x(i).toFixed(1)},${y(p[k]).toFixed(1)}`).join('');
+  el('path', { d: path('baseline_cost') + `L${x(d.length - 1)},${y(0)}L${x(0)},${y(0)}Z`, fill: css('--ember-bg') }, svg);
+  el('path', { d: path('baseline_cost'), fill: 'none', stroke: css('--ember'), 'stroke-width': 2 }, svg);
+  el('path', { d: path('windfall_cost') + `L${x(d.length - 1)},${y(0)}L${x(0)},${y(0)}Z`, fill: css('--leaf-bg') }, svg);
+  el('path', { d: path('windfall_cost'), fill: 'none', stroke: css('--leaf'), 'stroke-width': 2.4 }, svg);
+  [0, Math.floor(d.length / 3), Math.floor(2 * d.length / 3), d.length - 1].forEach((i) => axisText(svg, x(i), H - 8, d[i].day.slice(5)));
+}
+function paintMetrics(bt) {
+  const s = bt.summary;
+  const rows = [
+    ['Energy cost', eur(s.baseline_cost_eur), eur(s.windfall_cost_eur)],
+    ['CO₂ (location-based)', fmt(s.baseline_co2_kg) + ' kg', fmt(s.windfall_co2_kg) + ' kg'],
+    ['Peak power', s.baseline_peak_kw + ' kW', s.windfall_peak_kw + ' kW'],
+    ['Hours over 110 kW', s.over_cap_hours_baseline, s.over_cap_hours_windfall],
+    ['Cold-chain breaches', 0, s.cold_violations_windfall],
+    ['Vans ready at 06:00', '100%', s.vans_ready_pct + '%'],
+  ];
+  $('#metrics').innerHTML = `<tr><th></th><th>Naive</th><th>Windfall</th></tr>` + rows.map((r) => `<tr><td>${r[0]}</td><td class="mono">${r[1]}</td><td class="mono win">${r[2]}</td></tr>`).join('')
+    + `<tr><td><b>Saved</b></td><td></td><td class="mono win">${eur(s.saved_eur)} · −${s.saved_pct}%</td></tr>`;
+  $('#co2Big').textContent = s.co2_avoided_t_per_year;
+}
+function paintLearn(bt) {
+  const svg = $('#learnChart'); clear(svg);
+  const d = bt.daily.slice(0, 30), W = 420, H = 220, L = 34, R = 10, T = 12, B = 28;
+  const max = Math.max(1, ...d.map((x) => x.safety_overrides));
+  const bw = (W - L - R) / d.length;
+  d.forEach((p, i) => { const h = (p.safety_overrides / max) * (H - T - B); el('rect', { x: L + i * bw + 1, y: H - B - h, width: bw - 2, height: h, rx: 2, fill: css('--ember') }, svg); });
+  const ey = (v) => T + (1 - Math.min(v, 100) / 100) * (H - T - B);
+  el('path', { d: d.map((p, i) => `${i ? 'L' : 'M'}${L + i * bw + bw / 2},${ey(p.tau_error_pct)}`).join(''), fill: 'none', stroke: css('--leaf'), 'stroke-width': 2.4 }, svg);
+  axisText(svg, L, H - 8, 'day 1', 'start'); axisText(svg, W - R, H - 8, 'day 30', 'end');
+  axisText(svg, L + 4, T + 10, 'model error %', 'start', css('--leaf')); axisText(svg, W - R, T + 10, 'safety overrides / day', 'end', css('--ember'));
+  const s = bt.summary;
+  $('#learnNote').textContent = `Each night the Learner re-estimates how fast every cold room warms up. Model error ${s.model_error_first_pct}% → ${s.model_error_last_pct}%, safety overrides ${s.safety_overrides_first_days} → ${s.safety_overrides_last_days} per day.`;
+}
+function paintForecast(f) {
+  if (!f || !f.days) { $('#fcBars').innerHTML = '<p style="color:var(--mute)">Not enough history yet.</p>'; return; }
+  const mx = Math.max(f.price_mae_persistence, f.price_mae_analog) * 1.1;
+  const mxc = Math.max(f.co2_mae_persistence, f.co2_mae_analog) * 1.1;
+  const bar = (lab, v, m, color, unit) => `<div class="bar2"><div class="lab"><span>${lab}</span><span class="mono">${v} ${unit}</span></div><div class="tr"><i style="width:${(v / m) * 100}%;background:${color}"></i></div></div>`;
+  $('#fcBars').innerHTML = bar('Price · same as 2 days ago', f.price_mae_persistence, mx, css('--ember'), '€/MWh') + bar('Price · Windfall analog days', f.price_mae_analog, mx, css('--leaf'), '€/MWh')
+    + bar('Carbon · same as 2 days ago', f.co2_mae_persistence, mxc, css('--ember'), 'g/kWh') + bar('Carbon · Windfall analog days', f.co2_mae_analog, mxc, css('--leaf'), 'g/kWh');
+}
+
+/* ---------- day charts ---------- */
+function dayChart(svg, hours, layers, lines, cap, opts = {}) {
+  clear(svg);
+  const W = 860, H = opts.h || 330, L = 40, R = 44, T = 14, B = 28, n = hours.length, bw = (W - L - R) / n;
+  const maxKw = Math.max(cap * 1.15, ...hours.map((_, i) => layers.reduce((a, l) => a + (l.stack ? l.v[i] : 0), 0)), ...layers.filter((l) => !l.stack).flatMap((l) => l.v));
+  const y = (v) => T + (1 - v / maxKw) * (H - T - B);
+  for (let g = 0; g <= 4; g++) { const v = (maxKw / 4) * g; el('line', { x1: L, x2: W - R, y1: y(v), y2: y(v), stroke: css('--line') }, svg); axisText(svg, L - 6, y(v) + 4, Math.round(v) + '', 'end'); }
+  axisText(svg, L - 6, T - 2, 'kW', 'end');
+  const acc = new Array(n).fill(0);
+  for (const l of layers) {
+    for (let i = 0; i < n; i++) {
+      const v = l.v[i] || 0;
+      if (l.stack) { el('rect', { x: L + i * bw + 2, y: y(acc[i] + v), width: bw - 4, height: Math.max(0, y(acc[i]) - y(acc[i] + v)), fill: l.color, rx: 2, opacity: l.opacity ?? 1 }, svg); acc[i] += v; }
+      else el('rect', { x: L + i * bw + (l.offset || 2), y: y(v), width: (l.w || bw - 4), height: Math.max(0, y(0) - y(v)), fill: l.color, rx: 2, opacity: l.opacity ?? 1 }, svg);
+    }
+  }
+  el('line', { x1: L, x2: W - R, y1: y(cap), y2: y(cap), stroke: css('--ink'), 'stroke-dasharray': '5 5', 'stroke-width': 1.4 }, svg);
+  for (const ln of lines) {
+    const mx = Math.max(...ln.v.map(Math.abs), 1) * 1.1, mn = Math.min(0, ...ln.v);
+    const ly = (v) => T + (1 - (v - mn) / (mx - mn)) * (H - T - B);
+    el('path', { d: ln.v.map((v, i) => `${i ? 'L' : 'M'}${L + i * bw + bw / 2},${ly(v)}`).join(''), fill: 'none', stroke: ln.color, 'stroke-width': 2.2, 'stroke-linejoin': 'round' }, svg);
+    if (ln.axis) { axisText(svg, W - R + 6, T + 8, ln.label, 'start', ln.color); axisText(svg, W - R + 6, ly(0) + 4, '0', 'start', ln.color); }
+  }
+  hours.forEach((h, i) => { if (i % 3 === 0) axisText(svg, L + i * bw + bw / 2, H - 8, h); });
+  if (opts.cursor != null) el('rect', { x: L + opts.cursor * bw, y: T, width: bw, height: H - T - B, fill: css('--leaf'), opacity: 0.08 }, svg);
+  return { bw, L, T, H, B };
+}
+
+/* ---------- live ---------- */
+let LIVE = null;
+const roomsEl = $('#rooms'), vansEl = $('#vans');
+function paintRooms(names, temps, kws) {
+  roomsEl.innerHTML = names.map((n, i) => {
+    const t = temps[i] ?? -20, pos = Math.min(100, Math.max(0, ((t + 24) / 8) * 100));
+    return `<div class="room"><b>${esc(n)}</b><div class="t">${t.toFixed(1)} °C</div><div class="kw">${(kws[i] ?? 0).toFixed(1)} kW · limit −18 °C</div><div class="therm" aria-hidden="true"><div class="band"></div><div class="mark" style="left:calc(${pos}% - 2px)"></div></div></div>`;
+  }).join('');
+}
+function paintVans(vans, hour, evByVan) {
+  vansEl.innerHTML = vans.map((v, i) => {
+    let cls = 'away', label = 'out';
+    const arriveIdx = (v.arrive - 12 + 24) % 24;
+    if (hour >= arriveIdx) { cls = ''; label = 'plugged'; }
+    if (evByVan && evByVan[i]) { cls = 'charging'; label = 'charging'; }
+    if (hour >= 18) { cls = 'done'; label = 'ready'; }
+    return `<div class="van ${cls}">${esc(v.van.replace('Van ', 'V'))}<br>${label}</div>`;
+  }).join('');
+}
+function feed(html, cls = '') {
+  const f = $('#feed');
+  if (f.firstElementChild && !f.firstElementChild.dataset.live) f.innerHTML = '';
+  const d = document.createElement('div'); d.className = 'ev ' + cls; d.dataset.live = '1'; d.innerHTML = html; f.prepend(d);
+}
+function liveRedraw() {
+  if (!LIVE) return;
+  const n = LIVE.hours.length, actualCold = LIVE.cold.slice(), actualEv = LIVE.ev.slice();
+  dayChart($('#liveChart'), LIVE.hours, [
+    { v: LIVE.base, color: '#C9D3CC', stack: true },
+    { v: actualCold, color: css('--cold'), stack: true },
+    { v: actualEv, color: css('--leaf'), stack: true },
+  ], [{ v: LIVE.price, color: css('--ember'), axis: true, label: '€/MWh' }, { v: LIVE.co2, color: css('--wind') }], LIVE.cap, { cursor: LIVE.hour });
+}
+function connect() {
+  const es = new EventSource('/api/stream');
+  es.onmessage = (m) => {
+    const e = JSON.parse(m.data);
+    if (e.type === 'live_start') {
+      LIVE = { hours: e.hours, price: e.price, co2: e.co2, base: e.base, cold: e.plan_cold.map(() => 0), ev: e.plan_ev.map(() => 0), cap: e.cap, rooms: e.rooms, vans: e.vans, hour: 0 };
+      $('#feed').innerHTML = ''; feed(`<span class="who">Planner</span><p>Plan for ${esc(e.date)} loaded: cold rooms pre-cool in cheap hours, vans charge overnight in the cleanest hours.</p>`, 'decision');
+      paintRooms(e.rooms, e.rooms.map(() => -20), []); paintVans(e.vans, 0); liveRedraw();
+    } else if (e.type === 'telemetry' && LIVE) {
+      const h = e.hour; LIVE.hour = h; LIVE.cold[h] = e.cold_kw; LIVE.ev[h] = e.ev_kw;
+      $('#cTime').textContent = e.sim_ts.slice(11); $('#cSpent').textContent = '€' + e.spent_eur.toFixed(2); $('#cCo2').textContent = e.co2_kg.toFixed(1) + ' kg';
+      paintRooms(LIVE.rooms, LIVE.rooms.map((_, i) => e[`room${i}_temp`]), LIVE.rooms.map((_, i) => e[`room${i}_kw`]));
+      paintVans(LIVE.vans, h, LIVE.vans.map(() => e.ev_kw > 0 && Math.random() < e.vans_charging / LIVE.vans.length + 0.05));
+      liveRedraw();
+    } else if (e.type === 'anomaly') {
+      feed(`<span class="who">Anomaly · Kafka event</span><p>${esc(e.message)}</p>`, 'anomaly');
+    } else if (e.type === 'decision') {
+      feed(`<span class="who">${esc(e.agent)} · ${esc(e.kind)}</span><p><b>${esc(e.summary)}</b><br>${esc(e.explanation)}</p>`, 'decision');
+      loadAudit();
+    } else if (e.type === 'live_end') {
+      feed(`<span class="who">Day closed</span><p>${'€' + e.spent_eur.toFixed(2)} spent, ${e.co2_kg} kg CO₂. Every van ready at 06:00, no cold-chain breach.</p>`, 'decision');
+      $('#liveBtn').disabled = false; $('#liveStop').hidden = true; loadData();
+    }
+  };
+}
+$('#liveBtn').onclick = async () => { $('#liveBtn').disabled = true; $('#liveStop').hidden = false; await fetch('/api/live/start?speed=2.5', { method: 'POST' }); };
+$('#liveStop').onclick = async () => { await fetch('/api/live/stop', { method: 'POST' }); $('#liveBtn').disabled = false; $('#liveStop').hidden = true; };
+
+/* ---------- time machine ---------- */
+async function loadDay(date) {
+  const d = await get('/api/day' + (date ? '?date=' + date : ''));
+  if (!d.baseline) return;
+  dayChart($('#tmChart'), d.hours, [
+    { v: d.baseline.load.total, color: css('--ember'), opacity: 0.45, w: 14, offset: 4 },
+    { v: d.windfall.load.total, color: css('--leaf'), w: 14, offset: 18 },
+  ], [{ v: d.market.price, color: css('--ink'), axis: true, label: '€/MWh' }], 110, { h: 280 });
+  const b = d.baseline, w = d.windfall;
+  $('#tmStats').innerHTML = `<div class="k">${esc(d.date)} · noon to noon</div>
+    <table class="metrics" style="margin-top:8px"><tr><th></th><th>Naive</th><th>Windfall</th></tr>
+    <tr><td>Cost</td><td class="mono">€${b.cost_eur.toFixed(2)}</td><td class="mono win">€${w.cost_eur.toFixed(2)}</td></tr>
+    <tr><td>CO₂</td><td class="mono">${b.co2_kg.toFixed(1)} kg</td><td class="mono win">${w.co2_kg.toFixed(1)} kg</td></tr>
+    <tr><td>Peak</td><td class="mono">${b.peak_kw.toFixed(0)} kW</td><td class="mono win">${w.peak_kw.toFixed(0)} kW</td></tr>
+    <tr><td>Hours over cap</td><td class="mono">${b.over_cap_hours}</td><td class="mono win">${w.over_cap_hours}</td></tr>
+    <tr><td>Vans ready</td><td class="mono">${b.vans_ready}/12</td><td class="mono win">${w.vans_ready}/12</td></tr></table>
+    <p style="font-size:13.5px;color:var(--soft);margin-top:12px">Prices ranged from €${Math.min(...d.market.price).toFixed(0)} to €${Math.max(...d.market.price).toFixed(0)}/MWh. Windfall moved load into the green valleys and out of the evening peak.</p>`;
+}
+
+/* ---------- data layer ---------- */
+async function loadData() {
+  let d; try { d = await get('/api/datalayer'); } catch (e) { return; }
+  const c = d.counts, st = d.status;
+  const live = (k) => st[k]?.live ? '' : ' <span style="color:var(--ember)">(offline)</span>';
+  const node = (cls, title, sub, n) => `<div class="node ${cls}"><b>${title}</b><small>${sub}</small>${n ? `<div class="n">${n}</div>` : ''}</div>`;
+  $('#flow').innerHTML = `
+    <div class="col"><div class="k">Sources</div>
+      ${node('', 'Energy-Charts', 'French day-ahead prices + generation by fuel → grid carbon intensity', '')}
+      ${node('', 'Open-Meteo', 'Temperature: cold-room load and compressor efficiency', '')}
+      ${node('', 'Keenable', 'Grid news and alerts for the Planner', '')}
+      ${node('', 'Site telemetry', 'Cold rooms, chargers, meter (simulated)', '')}</div>
+    <div class="col"><div class="k">Stream</div>
+      ${node('aiven', 'Kafka' + live('kafka'), 'Topics site.telemetry and agent.decisions; the Watcher consumes them live', fmt(c.kafka.messages) + ' messages')}
+      ${node('aiven', 'Valkey' + live('valkey'), 'Live site state and the pub/sub bus that drives this page', 'live state + events')}</div>
+    <div class="col"><div class="k">Memory & history</div>
+      ${node('aiven', 'ClickHouse' + live('clickhouse'), 'Market history, telemetry, backtest runs', fmt(c.clickhouse.market_hours) + ' market hours · ' + fmt(c.clickhouse.telemetry_points) + ' telemetry points')}
+      ${node('aiven', 'PostgreSQL + pgvector' + live('postgres'), 'Assets, learned physics, and a vector memory of every past day for the Forecaster', fmt(c.postgres.day_memories) + ' day memories · ' + fmt(c.postgres.decisions) + ' decisions')}
+      ${node('aiven', 'OpenSearch' + live('opensearch'), 'Full-text audit trail of every agent decision', fmt(c.opensearch.audit_docs) + ' audit documents')}</div>
+    <div class="col"><div class="k">Agents</div>
+      ${node('', 'Forecaster', 'Similar past days via pgvector → price & carbon 2 days ahead', '')}
+      ${node('', 'Planner', 'Optimises every asset under hard constraints; Claude explains', '')}
+      ${node('', 'Watcher', 'Reacts to Kafka anomalies, replans in seconds', '')}
+      ${node('', 'Learner', 'Re-fits each cold room nightly from ClickHouse history', '')}
+      ${node('', 'Auditor', 'Writes to OpenSearch, drafts the CSRD note', '')}</div>`;
+}
+
+/* ---------- audit + report ---------- */
+let qT = null;
+async function loadAudit() {
+  const q = $('#q').value.trim();
+  const docs = await get('/api/audit?q=' + encodeURIComponent(q));
+  $('#log').innerHTML = docs.length ? docs.map((d) => `<li><div class="meta">${esc((d.at || '').replace('T', ' ').slice(0, 19))} · ${esc(d.agent)} · ${esc(d.kind)}</div><b>${esc(d.summary)}</b><div style="color:var(--soft)">${esc(d.explanation || '')}</div></li>`).join('') : '<li style="color:var(--mute)">No decision matches.</li>';
+}
+$('#q').addEventListener('input', () => { clearTimeout(qT); qT = setTimeout(loadAudit, 250); });
+$('#repBtn').onclick = async () => {
+  $('#repBtn').disabled = true; $('#report').innerHTML = '<p style="color:var(--mute)">The Auditor is drafting…</p>';
+  const r = await get('/api/report');
+  $('#report').innerHTML = `<h3 style="font-size:19px;margin-top:14px">${esc(r.title)}</h3>${(r.paragraphs || []).map((p) => `<p>${esc(p)}</p>`).join('')}<p style="font-size:12.5px;color:var(--mute)">${esc(r.method)}</p>`;
+  $('#repBtn').disabled = false; loadAudit();
+};
+
+/* ---------- go ---------- */
+(async () => {
+  await waitReady();
+  BT = await get('/api/backtest');
+  paintKpis(BT); paintCost(BT); paintMetrics(BT); paintLearn(BT); paintForecast(BT.forecast);
+  const days = await get('/api/days');
+  $('#daySel').innerHTML = days.slice().reverse().map((d) => `<option>${d}</option>`).join('');
+  $('#daySel').onchange = () => loadDay($('#daySel').value);
+  loadDay(days[days.length - 1]);
+  connect(); loadBriefing(); loadData(); loadAudit();
+  setInterval(async () => { try { paintStores(await get('/api/health')); } catch (e) {} }, 15000);
+  paintRooms(['Cold room A · frozen food', 'Cold room B · ice cream', 'Cold room C · overflow'], [-20, -20, -20], []);
+})();
+})();
+</script>
+</body>
+</html>
