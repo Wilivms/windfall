@@ -181,15 +181,57 @@ footer{padding-block:40px 70px;color:var(--mute);font-size:11.5px;border-top:1px
 @media (max-width:620px){.flow,.agents,.rooms{grid-template-columns:minmax(0,1fr)}.matrix{height:150px}.mlab span:nth-child(even){visibility:hidden}.bootgrid{grid-template-columns:repeat(12,10px)}}
 @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
 </style>
+
+<style>
+/* ---- motion layer (NEAR-like): glyph intro, bracket hovers, pixel icons that come alive, scramble headings, agent tabs ---- */
+.boot{background:var(--paper);overflow:hidden;padding:0}
+.glyphs{position:absolute;inset:0;margin:0;font-family:var(--mono);font-size:17px;line-height:21px;letter-spacing:3px;color:var(--ink);white-space:pre;overflow:hidden;opacity:.85;user-select:none}
+.glyphs b{color:var(--leaf);font-weight:600}
+.bootcard{position:relative;z-index:2;background:var(--paper);border:1px solid var(--line-2);padding:26px 34px;min-width:min(520px,90vw)}
+.bootcard h2{font-size:clamp(44px,8vw,96px)}
+.skip{position:absolute;right:22px;bottom:22px;z-index:3;border:1px solid var(--line-2);background:var(--card);padding:12px 18px;font-size:12px;cursor:pointer}
+.hov{position:relative;transition:background .25s}
+.hov::after{content:"";position:absolute;inset:-1px;pointer-events:none;opacity:0;transition:opacity .2s,inset .25s;
+  background:
+   linear-gradient(var(--leaf),var(--leaf)) top left/14px 2px no-repeat, linear-gradient(var(--leaf),var(--leaf)) top left/2px 14px no-repeat,
+   linear-gradient(var(--leaf),var(--leaf)) top right/14px 2px no-repeat, linear-gradient(var(--leaf),var(--leaf)) top right/2px 14px no-repeat,
+   linear-gradient(var(--leaf),var(--leaf)) bottom left/14px 2px no-repeat, linear-gradient(var(--leaf),var(--leaf)) bottom left/2px 14px no-repeat,
+   linear-gradient(var(--leaf),var(--leaf)) bottom right/14px 2px no-repeat, linear-gradient(var(--leaf),var(--leaf)) bottom right/2px 14px no-repeat}
+.hov:hover::after,.hov.active::after{opacity:1;inset:4px}
+.hov:hover{background:var(--card)}
+.reveal{opacity:0;transform:translateY(18px);transition:opacity .7s ease,transform .7s ease}
+.reveal.in{opacity:1;transform:none}
+.agent{cursor:pointer}
+.agent.active{background:var(--card)}
+.agent.active .code{color:var(--leaf)}
+.agent .bar2t{height:2px;background:var(--leaf);width:0;margin:-22px -22px 20px;transition:width .2s}
+.agent.active .bar2t{animation:fillbar 6s linear forwards}
+@keyframes fillbar{from{width:0}to{width:calc(100% + 44px)}}
+.agentpanel{display:grid;grid-template-columns:auto minmax(0,1fr) minmax(0,1fr);gap:36px;padding:28px;border:1px solid var(--line-2);border-top:0;align-items:start}
+.agentpanel .bigpix{display:grid;grid-template-columns:repeat(9,16px);gap:3px}
+.agentpanel .bigpix i{width:16px;height:16px;background:rgba(47,43,34,.1);transition:background .15s}
+.agentpanel .bigpix i.f{background:var(--ink)}.agentpanel .bigpix i.g{background:var(--leaf)}
+.agentpanel h3{font-size:34px;text-transform:uppercase;margin:6px 0 10px}
+.agentpanel dl{margin:0;font-size:12.5px;line-height:1.6}
+.agentpanel dt{font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--mute);margin-top:12px}
+.agentpanel dd{margin:2px 0 0;color:var(--ink-2)}
+.agentpanel .stat{font-family:var(--display);font-weight:700;font-size:44px;color:var(--leaf);letter-spacing:-.03em;margin-top:6px}
+.prov{display:inline-block;margin-left:10px;font-size:10px;letter-spacing:.08em;padding:3px 7px;border:1px solid currentColor;vertical-align:1px}
+.prov.live{color:var(--leaf)}.prov.rec{color:var(--soft)}
+@media (max-width:900px){.agentpanel{grid-template-columns:minmax(0,1fr)}}
+@media (prefers-reduced-motion:reduce){.reveal{opacity:1;transform:none}}
+</style>
 </head>
 <body>
 
 <div class="boot" id="boot">
-  <div>
+  <pre class="glyphs" id="glyphs" aria-hidden="true"></pre>
+  <div class="bootcard">
     <h2>Windfall</h2>
     <div class="bootgrid" id="bootgrid" aria-hidden="true"></div>
     <p id="bootMsg">STARTING THE AGENTS…</p>
   </div>
+  <button class="skip" id="skipBoot" type="button" hidden>Enter ↗</button>
 </div>
 
 <div class="bar"></div>
@@ -330,7 +372,8 @@ footer{padding-block:40px 70px;color:var(--mute);font-size:11.5px;border-top:1px
       <div><div class="k blue">05 / The team</div><h2 class="hd" style="margin-top:14px">Five agents,<em>one site</em></h2></div>
       <p>Each agent owns one job and one slice of the data layer. Claude writes the explanations; the maths is deterministic and auditable.</p>
     </div>
-    <div class="agents grid" id="agentCards"></div>
+    <div class="agents grid" id="agentCards" role="tablist"></div>
+    <div class="agentpanel" id="agentPanel" role="tabpanel"></div>
   </section>
 
   <section class="wrap" id="data">
@@ -374,6 +417,7 @@ const NS = 'http://www.w3.org/2000/svg';
 const css = (v) => getComputedStyle(document.documentElement).getPropertyValue(v).trim();
 
 /* boot */
+const BOOT_T0 = performance.now();
 const bg = $('#bootgrid'); bg.innerHTML = '<i></i>'.repeat(48);
 let bootTick = 0; const bootAnim = setInterval(() => { bg.children[bootTick % 48].classList.toggle('on'); bootTick += 7; }, 90);
 async function waitReady() {
@@ -383,7 +427,7 @@ async function waitReady() {
       paintStores(h);
       $('#bootMsg').textContent = (h.progress || '').toUpperCase();
       if (h.ready) {
-        clearInterval(bootAnim); $('#boot').hidden = true;
+        const wait = 2600 - (performance.now() - BOOT_T0); if (wait > 0 && !window.__skip) await new Promise((r) => { setTimeout(r, wait); $('#skipBoot').hidden = false; $('#skipBoot').onclick = () => { window.__skip = 1; r(); }; }); clearInterval(bootAnim); $('#boot').hidden = true;
         $('#srcNote').textContent = h.data_source === 'real' ? 'real French market data, last 92 days' : 'simulated market (real sources unreachable)';
         $('#mSrc').textContent = h.data_source === 'real' ? 'REAL DATA · ENERGY-CHARTS' : 'SIMULATOR';
         return h;
@@ -684,6 +728,124 @@ paintVans(Array.from({ length: 12 }, (_, i) => ({ van: 'Van ' + String(i + 1).pa
   connect(); loadBriefing(); loadData(); loadAudit();
   setInterval(async () => { try { paintStores(await get('/api/health')); } catch (e) {} }, 15000);
 })();
+})();
+</script>
+
+<script>
+(() => {
+const $ = (q) => document.querySelector(q), $$ = (q) => [...document.querySelectorAll(q)];
+const RM = matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+/* glyph field intro: weather/energy glyph rows with WINDFALL running down the middle column */
+const G = ['+', '·', '▲', 'ϟ', '●', '✦', '☂', '≈', '☀'];
+const pre = $('#glyphs');
+let gt = 0, gTimer = null;
+function drawGlyphs() {
+  const cols = Math.ceil(innerWidth / 13) + 2, rows = Math.ceil(innerHeight / 21) + 1, mid = Math.floor(cols / 2), word = 'WINDFALL·AIVEN·RUNTIME·';
+  let out = '';
+  for (let r = 0; r < rows; r++) {
+    const band = Math.floor((r + gt / 3) / 7) % 3, set = band === 0 ? [0, 1, 2] : band === 1 ? [3, 4, 0, 5] : [6, 7, 8, 1];
+    let line = '';
+    for (let c = 0; c < cols; c++) {
+      if (c === mid) { line += '<b>' + word[(r + gt) % word.length] + '</b>'; continue; }
+      line += G[set[(c + r * 2 + gt) % set.length]];
+    }
+    out += line + '\n';
+  }
+  pre.innerHTML = out; gt++;
+}
+if (pre) { drawGlyphs(); if (!RM) gTimer = setInterval(drawGlyphs, 140); }
+const bootEl = $('#boot');
+new MutationObserver(() => { if (bootEl.hidden && gTimer) { clearInterval(gTimer); gTimer = null; } }).observe(bootEl, { attributes: true });
+
+/* scramble text */
+const CH = '▲●ϟ+·✦#%&/<>01';
+function scramble(el, dur = 700) {
+  if (RM || !el || el.dataset.scr === '1') return;
+  el.dataset.scr = '1';
+  const nodes = [];
+  const walk = (n) => n.childNodes.forEach((c) => c.nodeType === 3 ? nodes.push([c, c.textContent]) : walk(c));
+  walk(el);
+  const t0 = performance.now();
+  const step = (t) => {
+    const k = Math.min(1, (t - t0) / dur);
+    nodes.forEach(([n, txt]) => { const keep = Math.floor(txt.length * k); n.textContent = txt.slice(0, keep) + [...txt.slice(keep)].map((c) => c === ' ' ? ' ' : CH[(Math.random() * CH.length) | 0]).join(''); });
+    if (k < 1) requestAnimationFrame(step); else { nodes.forEach(([n, txt]) => n.textContent = txt); el.dataset.scr = ''; }
+  };
+  requestAnimationFrame(step);
+}
+
+/* reveal + scramble headings on scroll */
+const io = new IntersectionObserver((es) => es.forEach((e) => { if (e.isIntersecting) { e.target.classList.add('in'); if (e.target.matches('.sechead')) scramble(e.target.querySelector('h2')); io.unobserve(e.target); } }), { threshold: .15 });
+$$('section .sechead, section .grid, .agentpanel').forEach((el) => { el.classList.add('reveal'); io.observe(el); });
+
+/* bracket hovers on every card-like cell (re-applied as content renders) */
+function hoverize() { $$('.kpi, .agent, .node, .room, .evgrid>div, .plan>div, .tm>div, .auditgrid>div, .counters>div').forEach((e) => e.classList.add('hov')); }
+new MutationObserver(hoverize).observe(document.body, { childList: true, subtree: true });
+
+/* provenance labels: live run vs recorded scenario (brief asks for it) */
+const prov = { live: ['LIVE RUN · today’s real market, simulated site', 'live'], evidence: ['RECORDED · replay of past real market days', 'rec'], timemachine: ['RECORDED · real market, simulated site', 'rec'], plan: ['LIVE · computed at boot from real prices', 'live'], data: ['LIVE · counts from the running services', 'live'] };
+Object.entries(prov).forEach(([id, [t, c]]) => { const k = $(`#${id} .sechead .k`); if (k) k.insertAdjacentHTML('beforeend', `<span class="prov ${c}">${t}</span>`); });
+
+/* count-up for KPI numbers */
+function countUp(b) {
+  const m = b.textContent.match(/^([^\d−-]*)([−-]?)([\d,.]+)(.*)$/); if (!m || RM) return;
+  const target = parseFloat(m[3].replace(/,/g, '')), dec = (m[3].split('.')[1] || '').length, t0 = performance.now();
+  const f = (t) => { const k = Math.min(1, (t - t0) / 1100), e = 1 - Math.pow(1 - k, 3), v = target * e;
+    b.textContent = m[1] + m[2] + v.toLocaleString('en-US', { minimumFractionDigits: dec, maximumFractionDigits: dec }) + m[4]; if (k < 1) requestAnimationFrame(f); };
+  requestAnimationFrame(f);
+}
+new MutationObserver((ms, o) => { const bs = $$('#kpis .kpi b'); if (bs.length) { o.disconnect(); bs.forEach(countUp); } }).observe($('#kpis'), { childList: true });
+const co2 = $('#co2Big'); if (co2) new MutationObserver((ms, o) => { o.disconnect(); countUp(co2); }).observe(co2, { childList: true });
+
+/* pixel icons: idle twinkle, scramble on hover */
+function pixAlive(box) {
+  if (!box || box.dataset.alive) return; box.dataset.alive = '1';
+  const cells = [...box.children], orig = cells.map((c) => c.className);
+  let hot = false, h = null;
+  const host = box.closest('.agent');
+  const shuffle = () => cells.forEach((c, i) => { c.className = Math.random() < .35 ? (Math.random() < .5 ? 'f' : 'g') : ''; });
+  const restore = () => cells.forEach((c, i) => setTimeout(() => c.className = orig[i], i * 6));
+  if (host) {
+    host.addEventListener('mouseenter', () => { if (RM) return; hot = true; let n = 0; clearInterval(h); h = setInterval(() => { shuffle(); if (++n > 5) { clearInterval(h); restore(); } }, 70); });
+    host.addEventListener('mouseleave', () => { hot = false; });
+  }
+  if (!RM) setInterval(() => { if (hot) return; const i = (Math.random() * cells.length) | 0; if (!orig[i]) { cells[i].className = 'g'; setTimeout(() => cells[i].className = orig[i], 260); } }, 420 + Math.random() * 400);
+}
+
+/* agent tabs */
+const DETAIL = {
+  Forecaster: { reads: 'ClickHouse market history; pgvector memory of every past day (24-dim price + carbon profile)', writes: 'Price & carbon forecast for D+2', stat: () => window.__wf?.fc ? `−${Math.round((1 - window.__wf.fc.price_mae_analog / window.__wf.fc.price_mae_persistence) * 100)}%` : '—', statLab: 'forecast error vs "same as 2 days ago"' },
+  Planner: { reads: 'Day-ahead prices, grid carbon mix, weather, asset limits (Postgres), Keenable grid news', writes: 'Hour-by-hour schedule for every cold room and van; Claude writes the plan', stat: () => window.__wf?.s ? `−${window.__wf.s.saved_pct}%` : '—', statLab: 'energy cost vs the naive site' },
+  Watcher: { reads: 'Kafka topic site.telemetry, one message per asset-hour', writes: 'Replans + explanations on agent.decisions; live state in Valkey', stat: () => '< 2 s', statLab: 'from anomaly to new plan' },
+  Learner: { reads: 'ClickHouse telemetry: how fast each room really warms up', writes: 'Updated thermal model (τ) per room in Postgres', stat: () => window.__wf?.s ? `${window.__wf.s.model_error_first_pct}→${window.__wf.s.model_error_last_pct}%` : '—', statLab: 'model error, first vs last week' },
+  Auditor: { reads: 'Every decision, cost and kg CO₂', writes: 'OpenSearch audit index; CSRD carbon note drafted by Claude', stat: () => window.__wf?.s ? `${window.__wf.s.co2_avoided_t_per_year} t` : '—', statLab: 'CO₂ avoided per year, one site' },
+};
+let cur = 0, rot = null;
+function selectAgent(i, user) {
+  const cards = $$('#agentCards .agent'); if (!cards.length) return;
+  cur = (i + cards.length) % cards.length;
+  cards.forEach((c, j) => { c.classList.toggle('active', j === cur); c.setAttribute('aria-selected', j === cur); c.querySelector('.bar2t')?.replaceWith(Object.assign(document.createElement('div'), { className: 'bar2t' })); });
+  const c = cards[cur], name = c.querySelector('h3').textContent, d = DETAIL[name] || {};
+  const pix = [...c.querySelectorAll('.pix i')].map((e) => `<i class="${e.className}"></i>`).join('');
+  $('#agentPanel').innerHTML = `<div class="bigpix" aria-hidden="true">${pix}</div>
+    <div><div class="k blue">${c.querySelector('.code').textContent}</div><h3>${name}</h3><p style="margin:0;color:var(--soft);line-height:1.65;font-size:13px">${c.querySelector('p').textContent}</p></div>
+    <div><dl><dt>Reads</dt><dd>${d.reads || ''}</dd><dt>Writes</dt><dd>${d.writes || ''}</dd></dl><div class="stat">${d.stat ? d.stat() : ''}</div><div class="k">${d.statLab || ''}</div></div>`;
+  scramble($('#agentPanel h3'), 500);
+  const big = $('#agentPanel .bigpix'); [...big.children].forEach((e, j) => { const o = e.className; e.className = ''; setTimeout(() => e.className = o, 8 * j); });
+  if (user) { clearInterval(rot); rot = null; }
+}
+function initAgents() {
+  const cards = $$('#agentCards .agent'); if (!cards.length) return false;
+  cards.forEach((c, i) => { c.setAttribute('role', 'tab'); c.tabIndex = 0; c.insertAdjacentHTML('afterbegin', '<div class="bar2t"></div>'); c.addEventListener('click', () => selectAgent(i, true)); c.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); selectAgent(i, true); } if (e.key === 'ArrowRight') cards[(i + 1) % cards.length].focus(); if (e.key === 'ArrowLeft') cards[(i + cards.length - 1) % cards.length].focus(); }); pixAlive(c.querySelector('.pix')); });
+  selectAgent(0); if (!RM) rot = setInterval(() => selectAgent(cur + 1), 6000);
+  return true;
+}
+if (!initAgents()) { const t = setInterval(() => { if (initAgents()) clearInterval(t); }, 200); }
+
+/* expose summary numbers for the agent panel */
+const origFetch = window.fetch;
+window.fetch = async (...a) => { const r = await origFetch(...a); try { if (String(a[0]).includes('/api/backtest')) r.clone().json().then((b) => { window.__wf = { s: b.summary, fc: b.forecast }; selectAgent(cur); }); } catch (e) {} return r; };
 })();
 </script>
 </body>
