@@ -49,33 +49,24 @@ def _hourly(ts: list[int], vals: list[float | None]) -> dict[dt.datetime, float]
 def fetch_real(days: int = 92, timeout: float = 40.0) -> list[dict]:
     end = dt.date.today() + dt.timedelta(days=1)
     start = end - dt.timedelta(days=days + 1)
-    price: dict[dt.datetime, float] = {}
-    num: dict[dt.datetime, float] = defaultdict(float)
-    den: dict[dt.datetime, float] = defaultdict(float)
     with httpx.Client(timeout=timeout, follow_redirects=True) as c:
-        # Energy-Charts caps long ranges: fetch in 20-day windows
-        a = start
-        while a < end:
-            b = min(end, a + dt.timedelta(days=20))
-            try:
-                p = c.get("https://api.energy-charts.info/price", params={"bzn": "FR", "start": a.isoformat(), "end": b.isoformat()}).json()
-                price.update(_hourly(p["unix_seconds"], p["price"]))
-                g = c.get("https://api.energy-charts.info/public_power", params={"country": "fr", "start": a.isoformat(), "end": b.isoformat()}).json()
-                # carbon intensity = sum(gen_f * EF_f) / sum(gen_f)
-                for pt in g["production_types"]:
-                    fuel = _fuel(pt["name"])
-                    if fuel is None:
-                        continue
-                    for h, mw in _hourly(g["unix_seconds"], pt["data"]).items():
-                        if mw > 0:
-                            num[h] += mw * EF[fuel]
-                            den[h] += mw
-            except Exception as e:  # noqa: BLE001
-                print(f"[data] window {a}..{b}: {e}")
-            a = b
+        p = c.get("https://api.energy-charts.info/price", params={"bzn": "FR", "start": start.isoformat(), "end": end.isoformat()}).json()
+        g = c.get("https://api.energy-charts.info/public_power", params={"country": "fr", "start": start.isoformat(), "end": end.isoformat()}).json()
         w = c.get("https://api.open-meteo.com/v1/forecast", params={
             "latitude": LAT, "longitude": LON, "hourly": "temperature_2m", "past_days": min(days, 92),
             "forecast_days": 2, "timezone": "Europe/Paris"}).json()
+    price = _hourly(p["unix_seconds"], p["price"])
+    # carbon intensity = Σ(gen_f · EF_f) / Σ gen_f
+    num: dict[dt.datetime, float] = defaultdict(float)
+    den: dict[dt.datetime, float] = defaultdict(float)
+    for pt in g["production_types"]:
+        fuel = _fuel(pt["name"])
+        if fuel is None:
+            continue
+        for h, mw in _hourly(g["unix_seconds"], pt["data"]).items():
+            if mw > 0:
+                num[h] += mw * EF[fuel]
+                den[h] += mw
     co2 = {h: num[h] / den[h] for h in den if den[h] > 0}
     temp = {}
     for t, v in zip(w["hourly"]["time"], w["hourly"]["temperature_2m"]):

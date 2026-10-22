@@ -87,10 +87,10 @@ class Hub:
     # ---------------- event fan-out (Valkey pub/sub when live, in-process otherwise)
     def emit(self, event: dict) -> None:
         event.setdefault("at", time.time())
+        # the dashboard is fed in-process; every event is also published on the Valkey bus (windfall:events)
+        self._fanout(event)
         if self.vk.live:
             self.vk.publish(event)
-        else:
-            self._fanout(event)
 
     def _fanout(self, event: dict) -> None:
         with self.listeners_lock:
@@ -101,6 +101,7 @@ class Hub:
                     pass
 
     def start_valkey_bridge(self) -> None:
+        return  # single replica: events are fanned out in-process (see emit)
         if not self.vk.live:
             return
         def loop() -> None:
@@ -339,8 +340,7 @@ class Hub:
             co2_kg += total * co2[h] / 1000
             row.update({"cold_kw": round(room_kw, 2), "ev_kw": round(ev_kw, 2), "base_kw": float(base[h]), "site_kw": round(total, 2),
                         "spent_eur": round(spent, 2), "co2_kg": round(co2_kg, 1), "vans_charging": int((ev[:, h] > 0).sum())})
-            if self.kf.live:
-                self.kf.send("site.telemetry", row)
+            if self.kf.live and self.kf.send("site.telemetry", row):
                 # the Watcher consumes it from Kafka; if the stream lags, don't freeze the demo
                 t0 = time.time()
                 while self.seen_hour != h and time.time() - t0 < 2.0:

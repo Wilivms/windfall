@@ -640,7 +640,7 @@ async function loadData() {
       ${node('', 'Site telemetry', 'Cold rooms, chargers, meter (simulated)', '')}</div>
     <div class="col"><div class="k">[ 02 ] Stream</div>
       ${node('aiven', 'Kafka' + live('kafka'), 'site.telemetry and agent.decisions; the Watcher consumes them live', fmt(c.kafka.messages) + ' messages')}
-      ${node('aiven', 'Valkey' + live('valkey'), 'Live site state + pub/sub bus that drives this page', 'live state · events')}</div>
+      ${node('aiven', 'Valkey' + live('valkey'), 'Live site state + windfall:events pub/sub bus', 'live state · events')}</div>
     <div class="col"><div class="k">[ 03 ] Memory & history</div>
       ${node('aiven', 'ClickHouse' + live('clickhouse'), 'Market history, telemetry, backtest runs', fmt(c.clickhouse.market_hours) + ' market hours · ' + fmt(c.clickhouse.telemetry_points) + ' telemetry pts')}
       ${node('aiven', 'PostgreSQL + pgvector' + live('postgres'), 'Assets, learned physics, vector memory of every past day', fmt(c.postgres.day_memories) + ' day memories · ' + fmt(c.postgres.decisions) + ' decisions')}

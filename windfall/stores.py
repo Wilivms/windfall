@@ -321,12 +321,16 @@ class KF:
     def live(self) -> bool:
         return self.producer is not None
 
-    def send(self, topic: str, value: dict) -> None:
-        if self.producer:
-            try:
-                self.producer.send(topic, value)
-            except Exception as e:  # noqa: BLE001
-                print(f"[kafka] send {e}")
+    def send(self, topic: str, value: dict) -> bool:
+        if not self.producer or time.time() < getattr(self, "down_until", 0):
+            return False
+        try:
+            self.producer.send(topic, value)
+            return True
+        except Exception as e:  # noqa: BLE001
+            print(f"[kafka] send {e}")
+            self.down_until = time.time() + 60
+            return False
 
     def consume(self, topic: str, handler, group: str = "windfall-watcher") -> None:
         """Run a consumer in a background thread; handler(dict) per message."""
