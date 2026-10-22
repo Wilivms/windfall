@@ -9,6 +9,12 @@ Windfall moves small businesses' flexible power use into the hours when electric
 ## Hosted URL
 https://01a162cc-2818-71a1-bd99-489bb9cd522e-8080.eur-1.aiven.app
 
+## Pitch slide (public link)
+https://docs.google.com/presentation/d/1DPgYh-Pfllk5EjEpOE3YSJJ2yl-R8xo_HRwF1Pr6xBU/edit?usp=sharing
+
+## Code
+https://github.com/Wilivms/windfall
+
 ## The data layer in action
 Windfall is a team of five agents that run on Aiven Runtime. Every decision they make is built from data stored in Aiven services:
 
